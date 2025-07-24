@@ -1,0 +1,92 @@
+🎬 Movie Recommendation System
+# 1. Import necessary libraries
+import pandas as pd
+import numpy as np
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import difflib
+# 2. Load the dataset
+# Make sure 'movies.csv' is in your project directory!
+movies_df = pd.read_csv('movies.csv')
+# 3. Text preprocessing function
+def enhanced_preprocessing(text):
+    """
+    Clean and normalize text for NLP processing.
+    """
+    if pd.isna(text) or text == '':
+        return ''
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+# 4. Preprocess relevant features
+selected_features = ['genres', 'keywords', 'tagline', 'cast', 'director']
+for feature in selected_features:
+    movies_df[feature] = movies_df[feature].fillna('').apply(enhanced_preprocessing)
+# 5. Weighted feature combination for better results
+feature_weights = {
+    'genres': 3,
+    'director': 2.5,
+    'cast': 2,
+    'keywords': 1.5,
+    'tagline': 1
+}
+
+def combine_features_weighted(row):
+    combined = []
+    for feature, weight in feature_weights.items():
+        combined.append((row[feature] + ' ') * int(weight))
+    return ''.join(combined)
+
+movies_df['combined_features'] = movies_df.apply(combine_features_weighted, axis=1)
+# 6. TF-IDF vectorization with improved parameters
+vectorizer = TfidfVectorizer(
+    max_features=2000,
+    stop_words='english',
+    ngram_range=(1,2),
+    min_df=2,
+    max_df=0.95,
+    sublinear_tf=True
+)
+feature_vectors = vectorizer.fit_transform(movies_df['combined_features'])
+# 7. Compute similarity matrix
+similarity = cosine_similarity(feature_vectors)
+# 8. Recommendation function
+def get_recommendations(movie_title, num_recommendations=10):
+    movie_title = movie_title.lower().strip()
+    list_of_titles = movies_df['title'].str.lower().tolist()
+    matches = difflib.get_close_matches(movie_title, list_of_titles)
+    if not matches:
+        return f"No matches found for '{movie_title}'."
+    close_match = matches[0]
+    idx = movies_df[movies_df['title'].str.lower() == close_match].index[0]
+    similarity_scores = list(enumerate(similarity[idx]))
+    sorted_movies = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
+    recommendations = []
+    count = 0
+    for i in sorted_movies:
+        index = i[0]
+        if index != idx:
+            recommendations.append(movies_df.iloc[index]['title'])
+            count += 1
+        if count == num_recommendations:
+            break
+    print(f"Recommendations for '{movies_df.iloc[idx]['title']}':\n")
+    return recommendations
+# 9. Test the recommender
+recs = get_recommendations("The Dark Knight", 10)
+for i, m in enumerate(recs, 1):
+    print(f"{i}. {m}")
+
+#Output Result
+Recommendations for 'The Dark Knight':
+
+1. Batman Begins
+2. The Dark Knight Rises
+3. The Prestige
+4. Amidst the Devil's Wings
+5. Harsh Times
+6. London Has Fallen
+7. Exodus: Gods and Kings
+8. American Psycho
